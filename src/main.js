@@ -50,7 +50,7 @@ function init(raw){
   buildBar(); st=defaults(); readHash(); syncBar(); ready=true; render();
   window.addEventListener('hashchange',()=>{readHash();render()});
 }
-function defaults(){const y=X.months[X.lastFull].slice(0,4);const f=X.months.indexOf(y+'-01');return{from:f<0?0:f,to:X.lastFull,cmp:'py',rep:'',grp:'',mkt:'',page:'overview',preset:'ytd',ins:{mode:'week'},vol:{preset:'proelite',custom:new Set(),gran:'month',cf:'all'}}}
+function defaults(){const y=X.months[X.lastFull].slice(0,4);const f=X.months.indexOf(y+'-01');return{from:f<0?0:f,to:X.lastFull,cmp:'py',rep:'',grp:'',mkt:'',page:'overview',preset:'ytd',ins:{mode:'week'},vol:{preset:'all',custom:new Set(),gran:'month',cf:'all',unit:null,wk:8}}}
 function readHash(){const h=location.hash.slice(1);if(PAGES.some(p=>p[0]===h))st.page=h}
 function buildBar(){
   $('#nav').innerHTML=PAGES.map((p,i)=>(p[0]==='results'||p[0]==='data'||p[0]==='insights'?'<div class="sep"></div>':'')+`<a href="#${p[0]}" data-p="${p[0]}">${esc(p[1])}</a>`).join('');
@@ -701,8 +701,8 @@ VIEWS.insights=(pg)=>{const W=insWindows(),F=X.facts,K=winK(W),u=W.unit;
 
 const PEN=/(k[äa]lber|kalver)(einzel)?box|gruppenbucht|k[äa]lberboxen|quattro|duobox|duo-box|cuddle box|deluxe box|trio box|flex box|^calfotel (comfort|xl-5 (met|mit)|xl-5 lose|plus)/i;
 const LINE_IDS={proElite:'proelite',milkPowder:'mp',feed:'feed',calfPens:'boxes',calfHousing:'ch',calfSupplies:'cs',perfectUdder:'pu'};
-function volPresets(){if(X.lines&&X.lines.length)return[...X.lines.map(l=>[LINE_IDS[l.key]||l.key,l.label,new Set(l.products)]),['custom','Pick products',null]];
-  return volPresetsByName()}
+function volPresets(){const all=['all','All products',new Set(X.products.map((_,i)=>i))];if(X.lines&&X.lines.length)return[all,...X.lines.map(l=>[LINE_IDS[l.key]||l.key,l.label,new Set(l.products)]),['custom','Pick products',null]];
+  return[all,...volPresetsByName()]}
 function volPresetsByName(){const P=X.products,gOf=i=>P[i][1]>=0?X.gOfCat[P[i][1]]:5,sel=f=>new Set(P.map((_,i)=>i).filter(f));
   return[['proelite','Pro Elite milk powder',sel(i=>/^pro elite/i.test(P[i][0]))],['mp','All milk powder',sel(i=>gOf(i)===0)],['feed','Feed',sel(i=>gOf(i)===1)],
    ['boxes','Calf pens & hutches',sel(i=>gOf(i)===2&&PEN.test(P[i][0])&&!/set duoboxen|futterbox/i.test(P[i][0]))],['ch','All calf housing',sel(i=>gOf(i)===2)],['cs','Calf supplies',sel(i=>gOf(i)===3)],['pu','Perfect Udder',sel(i=>gOf(i)===4)],['custom','Pick products',null]]}
@@ -712,7 +712,8 @@ const gOfP=i=>{if(!_pg){_pg=new Map();for(const l of X.lines||[])if(LINE_GRP[l.k
 VIEWS.volumes=(pg,P)=>{const F=X.facts,V=st.vol,gi=st.grp?GROUPS.indexOf(st.grp):-1,inG=p=>gi<0||gOfP(p)===gi,
   PR=volPresets().map(x=>[x[0],x[1],x[2]&&new Set([...x[2]].filter(inG))]).filter(x=>!x[2]||x[2].size),
   pr=PR.find(x=>x[0]===V.preset)||PR[0],sel=pr[2]||new Set([...V.custom].filter(inG)),o={grp:'',where:i=>sel.has(F.p[i])};
-  const K=salesKPI(o),kgP=K.kg!==0||K.kgC!==0,qP=K.q!==0||K.qC!==0,main=kgP?'k':'q',dv=main==='k'?1000:X.qScale,uS=main==='k'?' t':' pcs',qf=v=>main==='k'?ton(v):pcs(v);
+  const K=salesKPI(o),kgP=K.kg!==0||K.kgC!==0,qP=K.q!==0||K.qC!==0;let rK=0,rQ=0;for(const i of K.cur)X.kgProd.has(F.p[i])?rK+=F.r[i]:rQ+=F.r[i];
+  const auto=!kgP?'q':!qP?'k':rK>=rQ?'k':'q',main=kgP&&qP&&(V.unit==='k'||V.unit==='q')?V.unit:auto,dv=main==='k'?1000:X.qScale,uS=main==='k'?' t':' pcs',qf=v=>main==='k'?ton(v):pcs(v);
   const unitRow=i=>main==='k'?X.kgProd.has(F.p[i]):!X.kgProd.has(F.p[i]);
   const agg=(ix,key)=>{const m=new Map();if(!ix)return m;for(const i of ix){const k=key(i);const x=m.get(k)||{k:0,q:0,r:0,ur:0,uq:0};x.k+=F.k[i];x.q+=F.q[i];x.r+=F.r[i];if(unitRow(i)){x.ur+=F.r[i];x.uq+=F[main][i]}m.set(k,x)}return m};
   const A=agg(K.cur,i=>F.v[i]),B=agg(K.cmp,i=>F.v[i]),Z={k:0,q:0,r:0,ur:0,uq:0},g=(m,k)=>m.get(k)||Z,mq=x=>main==='k'?x.k:x.q;
@@ -723,10 +724,10 @@ VIEWS.volumes=(pg,P)=>{const F=X.facts,V=st.vol,gi=st.grp?GROUPS.indexOf(st.grp)
   const top=ids[0],qty=(k,q)=>[k?ton(k):'',q?pcs(q):''].filter(Boolean).join(' · ')||'0';
   const uprice=x=>x.uq?(main==='k'?'€ '+NF2.format(x.ur/x.uq/100)+'/kg':'€ '+NF2.format(x.ur/(x.uq/X.qScale)/100)+'/pc'):'—';
   const tA={k:K.kg,q:K.q,r:K.rev,ur:0,uq:0};for(const x of A.values()){tA.ur+=x.ur;tA.uq+=x.uq}
-  pg.innerHTML=`<h1>${esc(pr[1])}: ${esc(qty(K.kg,main==='q'?K.q:0))} sold in ${esc(P.label)}${K.cmp&&mVal(K,main)!==0?`, ${pct(growth(mVal(K,main),mVal(K,main,1)))} vs ${esc(P.cmpLabel)}`:''}</h1>
-  <p class="sub">Quantities for the products you choose: tonnes for products sold by weight, pieces for products sold per unit, net of returns. ${esc(filtTxt())}.${st.grp?` Only ${esc(st.grp)} products are offered below; choose “All product groups” to see the others.`:''}</p>
+  pg.innerHTML=`<h1>${esc(pr[1])}: ${esc(qf(mVal(K,main)))} sold in ${esc(P.label)}${K.cmp&&mVal(K,main)!==0?`, ${pct(growth(mVal(K,main),mVal(K,main,1)))} vs ${esc(P.cmpLabel)}`:''}</h1>
+  <p class="sub">Quantities for the products you choose: tonnes for products sold by weight, pieces for products sold per unit, net of returns. Charts and rankings use ${main==='k'?'tonnes':'pieces'}${kgP&&qP?(V.unit?' (your choice)':` (the unit with most revenue in this selection)`):''}. ${esc(filtTxt())}.${st.grp?` Only ${esc(st.grp)} products are offered below; choose “All product groups” to see the others.`:''}</p>
   <div class="seg" id="vP" style="margin-bottom:8px">${PR.map(x=>`<button class="btn ${x[0]===pr[0]?'on':''}" data-p="${x[0]}">${esc(x[1])}${x[2]?` <span class="na">(${x[2].size})</span>`:''}</button>`).join('')}</div>
-  <div id="vPick"></div>
+  <div id="vPick"></div>${kgP&&qP?`<div class="seg" id="vU" style="margin:0 0 8px"><span class="note" style="align-self:center;margin-right:6px">Show volumes in</span><button class="btn ${main==='k'?'on':''}" data-u="k">Tonnes</button><button class="btn ${main==='q'?'on':''}" data-u="q">Pieces</button></div>`:''}
   <details style="margin:4px 0 14px"><summary style="cursor:pointer;font-size:13.5px;color:var(--link)">Products included: ${sel.size}${pr[0]==='boxes'?' — the pens, boxes and hutches themselves (Kälbereinzelbox, Gruppenbucht, Quattro, Duobox, CalfOTel hutches…); wheels, gates, bucket rings, closures and connection sets are left out. Adjust with “Pick products”.':''}</summary><div class="scroll" style="max-height:240px;margin-top:6px"><table><tbody>${[...sel].sort((a,b)=>X.products[a][0].localeCompare(X.products[b][0])).map(p=>`<tr><td>${esc(X.products[p][0])}</td><td>${esc(X.products[p][1]>=0?X.categories[X.products[p][1]][0]:'—')}</td><td class="n">${qty(pk.get(p)||0,pq.get(p)||0)}</td></tr>`).join('')}</tbody></table></div></details>
   <div class="kpis">${kgP?kpiTile('vT','Tonnes',ton(K.kg),deltaHTML(K.kg,K.kgC,P,ton),'Net of returns'):''}${qP?kpiTile('vQ','Pieces',pcs(K.q),deltaHTML(K.q,K.qC,P,pcs),'Units sold per piece'):''}
    ${kpiTile('vR','Revenue',eurS(K.rev),deltaHTML(K.rev,K.revC,P),'Average '+uprice(tA))}
@@ -734,12 +735,14 @@ VIEWS.volumes=(pg,P)=>{const F=X.facts,V=st.vol,gi=st.grp?GROUPS.indexOf(st.grp)
    ${top!=null?kpiTile('vTop','Top verkoper',esc(X.verkopers[top].split(' ')[0]),`<span class="na">${qf(mq(g(A,top)))}</span>`,mVal(K,main)?share(mq(g(A,top))/mVal(K,main)*100)+' of the volume':''):''}</div>
   <div class="grid">
    ${card('c12','Volume per verkoper',`<div class="scroll" id="vTab"></div>`,'Average price = revenue ÷ quantity of products sold in that unit. New buyers bought now but not in the comparison period; stopped bought then but not now. Click a row for its customers and products.',`<button class="btn" id="vCopy">Copy table</button>`)}
+   ${card('c12',`${main==='k'?'Tonnes':'Pieces'} per verkoper, week by week`,`<div class="scroll tbox" id="vWk"></div>`,`Monday–Sunday weeks up to the last ledger day (${dLab(X.meta.ledgerThrough)}); the current week is still running. This table ignores the period filter and shows the most recent weeks; daily data starts April 2026. Click a cell for the customers and products behind it.`,`<div class="seg">${[[4,'4 weeks'],[8,'8 weeks'],[13,'13 weeks'],[26,'26 weeks'],[0,'All weeks']].map(([n,l])=>`<button class="btn ${(V.wk??8)===n?'on':''}" data-wk="${n}">${l}</button>`).join('')}<button class="btn" id="vWkC">Copy table</button></div>`)}
    ${card('c8',`${main==='k'?'Tonnes':'Pieces'} per verkoper over time`,`<div class="fig s" id="vTr"></div><div id="vTrL"></div>`,'Top five verkopers by volume in the period; the others are combined.',`<div class="seg"><button class="btn ${V.gran!=='week'?'on':''}" id="vGm">Monthly</button><button class="btn ${V.gran==='week'?'on':''}" id="vGw">Weekly</button></div>`)}
    ${card('c4',`${main==='k'?'Tonnes':'Pieces'} per market`,`<div id="vMk"></div>`,'Click a market to filter the cockpit.')}
    ${card('c12','Volume per customer',`<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="search" id="vCq" placeholder="Search customer" aria-label="Search customer"><div class="seg"><button class="btn ${V.cf!=='new'&&V.cf!=='lost'?'on':''}" data-cf="all">All buyers</button><button class="btn ${V.cf==='new'?'on':''}" data-cf="new">New buyers</button><button class="btn ${V.cf==='lost'?'on':''}" data-cf="lost">Stopped buying</button></div></div><div class="scroll tbox" id="vCu"></div>`,'Who buys the selected products, with their verkoper and market. Click a row for the customer card.')}
    ${card('c12','Verkoper × product',`<div class="scroll tbox" id="vMx"></div>`,'Quantity per product in its own unit. Click a cell for its customers.')}
   </div>`;
-  $('#vP').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{if(b.dataset.p==='custom'&&pr[0]!=='custom'&&![...V.custom].some(inG))V.custom=new Set([...V.custom,...sel]);V.preset=b.dataset.p;render()});
+  if($('#vU'))$('#vU').querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{V.unit=b.dataset.u;render()});
+  $('#vP').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{V.unit=null;if(b.dataset.p==='custom'&&pr[0]!=='custom'&&![...V.custom].some(inG))V.custom=new Set([...V.custom,...sel]);V.preset=b.dataset.p;render()});
   if(pr[0]==='custom'){const all=[...new Set(F.p)].filter(inG).sort((a,b)=>X.products[a][0].localeCompare(X.products[b][0]));
     $('#vPick').innerHTML=`<div class="card" style="margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="search" id="vS" placeholder="Search products" aria-label="Search products"><button class="btn" id="vClr">Clear</button><span class="note">${sel.size} selected${st.grp?` in ${esc(st.grp)}`:''}</span></div><div class="scroll" style="max-height:230px" id="vList"></div></div>`;
     const draw=q=>{const L=all.filter(i=>!q||X.products[i][0].toLowerCase().includes(q)).slice(0,250);$('#vList').innerHTML=L.map(i=>`<label style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13.5px"><input type="checkbox" data-i="${i}" ${V.custom.has(i)?'checked':''}> ${esc(X.products[i][0])} <span class="na">${esc(X.products[i][1]>=0?X.categories[X.products[i][1]][0]:'')}</span></label>`).join('');
@@ -759,6 +762,20 @@ VIEWS.volumes=(pg,P)=>{const F=X.facts,V=st.vol,gi=st.grp?GROUPS.indexOf(st.grp)
   if(!chk)$('#vTab').insertAdjacentHTML('beforeend','<p class="down">Table total does not match.</p>');
   $('#vTab').querySelectorAll('tr[data-v]').forEach(tr=>tr.onclick=()=>vp(X.verkopers[+tr.dataset.v]+' · '+pr[1],{rep:X.verkopers[+tr.dataset.v]},main));
   $('#vCopy').onclick=()=>copyRows([head.map(h=>h.trim()),...ids.map(v=>{const a=g(A,v),b=g(B,v),n=nb(v);return[X.verkopers[v],...(kgP?[a.k/1000,...(K.cmp?[b.k/1000,'']:[])]:[]),...(qP?[a.q/X.qScale,...(K.cmp?[b.q/X.qScale,'']:[])]:[]),a.r/100,uprice(a).replace(/ /g,' '),'',n[0],...(K.cmp?[n[1],n[2]]:[])]})]);
+  {const WL=weekList(),nW=V.wk??8,WS=nW?WL.slice(-nW):WL,cur=WL[WL.length-1],a0=WS.length?WS[0].a:0,wi=t=>WS.findIndex(w=>t>=w.a&&t<=w.b);
+   const IX=WS.length?pickW({kind:'d',a:a0,b:WS[WS.length-1].b},o):[],cell=new Map(),rt=new Map(),ct=WS.map(()=>0);let gt=0;
+   for(const i of IX){const j=wi(F.T[i]);if(j<0)continue;const v=F.v[i],x=F[main][i],k=v+'|'+j;cell.set(k,(cell.get(k)||0)+x);rt.set(v,(rt.get(v)||0)+x);ct[j]+=x;gt+=x}
+   const wv=[...rt.keys()].filter(v=>rt.get(v)!==0||WS.some((_,j)=>cell.get(v+'|'+j))).sort((x,y)=>rt.get(y)-rt.get(x));
+   const lab=(w,j)=>{const n=w.b-w.a+1,last=j===WS.length-1,prev=j===WS.length-2;return`<span style="display:block">W${isoWeek(w.a).w}${last?' · this week':prev?' · last week':''}</span><span class="na" style="font-weight:400">${shortD(w.a)}–${shortD(w.b)}${w.full?'':` (${n} day${n>1?'s':''} so far)`}</span>`};
+   const fq=v=>v?qf(v):'—',ok=wv.reduce((s,v)=>s+rt.get(v),0)===gt&&ct.reduce((s,x)=>s+x,0)===gt&&IX.reduce((s,i)=>s+F[main][i],0)===gt;
+   const chg=(a,b)=>b>0?`<span class="${a>=b?'up':'down'}">${pct(growth(a,b))}</span>`:'—',L=WS.length-1;
+   $('#vWk').innerHTML=!WS.length||!wv.length?'<div class="empty">No sales of the selected products in these weeks.</div>':`<div class="chk ${ok?'ok':''}">${ok?`<b class="up">✓ Weeks and verkopers add up</b> to ${qf(gt)} over ${WS.length} weeks (${shortD(WS[0].a)} – ${dLab(isoOf(WS[L].b))}).`:'<b class="down">✗ Weekly totals do not add up.</b>'}</div><table><thead><tr><th>Verkoper</th>${WS.map((w,j)=>`<th class="n" style="white-space:nowrap;${j===L?'background:var(--hl,#eaf6fd)':''}">${lab(w,j)}</th>`).join('')}<th class="n">Total</th>${L>=2?'<th class="n" title="Last full week vs the week before">Last week vs week before</th>':''}</tr></thead><tbody>
+    ${wv.map(v=>`<tr><td style="white-space:nowrap">${esc(X.verkopers[v])}</td>${WS.map((w,j)=>`<td class="n" data-v="${v}" data-j="${j}" style="cursor:pointer;${j===L?'background:var(--hl,#eaf6fd)':''}">${fq(cell.get(v+'|'+j)||0)}</td>`).join('')}<td class="n"><b>${qf(rt.get(v))}</b></td>${L>=2?`<td class="n">${chg(cell.get(v+'|'+(L-1))||0,cell.get(v+'|'+(L-2))||0)}</td>`:''}</tr>`).join('')}
+    <tr class="tot"><td>Total</td>${WS.map((w,j)=>`<td class="n" data-j="${j}" style="cursor:pointer">${fq(ct[j])}</td>`).join('')}<td class="n">${qf(gt)}</td>${L>=2?`<td class="n">${chg(ct[L-1],ct[L-2])}</td>`:''}</tr></tbody></table>`;
+   $('#vWk').querySelectorAll('td[data-j]').forEach(td=>td.onclick=()=>{const w=WS[+td.dataset.j],v=td.dataset.v,lb=`W${isoWeek(w.a).w} · ${shortD(w.a)}–${shortD(w.b)}${w.full?'':' (so far)'}`;
+     winProof(`${v!=null?X.verkopers[+v]:'All verkopers'} · ${pr[1]} · ${lb}`,'Quantities of the selected products sold in this week, net of returns.',{label:lb,cur:{kind:'d',a:w.a,b:w.b},cmp:null},v!=null?{...o,rep:X.verkopers[+v]}:o,['customer','product','verkoper','market'],main)});
+   document.querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{V.wk=+b.dataset.wk;render()});
+   $('#vWkC').onclick=()=>copyRows([['Verkoper',...WS.map(w=>`W${isoWeek(w.a).w} ${isoOf(w.a)}${w.full?'':' (so far)'}`),'Total'],...wv.map(v=>[X.verkopers[v],...WS.map((w,j)=>(cell.get(v+'|'+j)||0)/dv),rt.get(v)/dv]),['Total',...ct.map(x=>x/dv),gt/dv]])}
   const t5=ids.slice(0,5);let labs,keys,kf;
   if(V.gran==='week'){const ws=new Set();for(const i of K.cur)if(F.T[i]!=null)ws.add(F.T[i]-((new Date(F.T[i]*864e5).getUTCDay()+6)%7));keys=[...ws].sort((a,b)=>a-b);labs=keys.map(t=>shortD(t));kf=i=>F.T[i]==null?null:F.T[i]-((new Date(F.T[i]*864e5).getUTCDay()+6)%7)}
   else{keys=P.cur.map(c=>c.m);labs=keys.map(m=>mLab(X.months[m]));kf=i=>F.m[i]}
