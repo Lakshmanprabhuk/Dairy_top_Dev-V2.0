@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1F3741">
+<title>DairyTop Business Cockpit</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app">
+<nav class="rail" id="rail" aria-label="Pages">
+<div class="brand"><span class="mark" aria-hidden="true"></span>Dairy<span>Top</span><small>Business cockpit</small></div>
+<div class="nav" id="nav"></div>
+<div class="asof" id="asof"></div>
+</nav>
+<div class="main">
+<div class="bar" id="bar">
+<button class="btn menu" id="menu" aria-label="Open pages menu">☰ Pages</button><button class="btn menu" id="fT" aria-expanded="false">Filters</button>
+<label for="fPeriod">Period<select id="fPeriod"></select></label>
+<label for="fFrom">From<select id="fFrom"></select></label>
+<label for="fTo">To<select id="fTo"></select></label>
+<label for="fCmp">Compare with<select id="fCmp"><option value="py">Same period last year</option><option value="pp">Previous period</option><option value="none">No comparison</option></select></label>
+<label for="fRep">Verkoper<select id="fRep"></select></label>
+<label for="fGrp">Product group<select id="fGrp"></select></label>
+<label for="fMkt">Market<select id="fMkt"></select></label>
+<button class="btn" id="fReset" style="align-self:end">Reset filters</button>
+<div class="cov" id="cov"></div>
+</div>
+<main class="page" id="page"><div class="skel" aria-label="Loading"><div class="sk h"></div><div class="sk s"></div><div class="skrow"><div class="sk k"></div><div class="sk k"></div><div class="sk k"></div><div class="sk k"></div></div><div class="sk c"></div></div></main>
+</div>
+</div>
+<div class="shade" id="shade"></div>
+<aside class="drawer" id="drawer" aria-label="How this number is built"><div class="top" id="dTop"></div><div class="body" id="dBody"></div></aside>
+<div class="tip" id="tip"></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
