@@ -150,7 +150,7 @@ function arKPI(per){const R=arRows(per);let open=0,over=0,over30=0,credit=0,nOpe
 const lateOrders=O=>O.filter(o=>o[12]==='toDeliver'&&o[7]==='past');
 const unbilled=O=>O.filter(o=>o[12]==='deliveredNotInvoiced');
 const staleOpen=O=>O.filter(o=>o[12]==='invoiced');
-function openOrders(){return X.orders.filter(o=>o[5]&&(!st.rep||o[3]===st.rep)&&(!st.mkt||(o[2]>=0&&X.customers[o[2]][1]===st.mkt)))}
+function openOrders(per){const lo=X.months[st.from],hi=X.months[st.to];return X.orders.filter(o=>o[5]&&(!per||(o[1].slice(0,7)>=lo&&o[1].slice(0,7)<=hi))&&(!st.rep||o[3]===st.rep)&&(!st.mkt||(o[2]>=0&&X.customers[o[2]][1]===st.mkt)))}
 function roTxt(){const W=roWin();return W[0]>W[1]?'—':(W[0]===W[1]?'on '+dLab(W[0]):dLab(W[0])+' – '+dLab(W[1]))}
 function arNoData(){return X.months[st.to]<X.meta.arStart.slice(0,7)}
 function roWin(){const a=X.months[st.from]+'-01',e=X.months[st.to],end=e+'-'+String(new Date(+e.slice(0,4),+e.slice(5),0).getDate()).padStart(2,'0');return[a,end<X.meta.ledgerThrough?end:X.meta.ledgerThrough]}
@@ -282,7 +282,7 @@ function bridgeSteps(dimKey,o={},top=6){const K=salesKPI(o),f=DIMS[dimKey].f,a=b
   return{K,steps:head}}
 
 VIEWS.overview=(pg,P)=>{
-  const K=salesKPI(),mp=priceKPI('Milk powder'),NL=newLost(),A=arKPI(true),RO=reorder(true),OO=openOrders();
+  const K=salesKPI(),mp=priceKPI('Milk powder'),NL=newLost(),A=arKPI(true),RO=reorder(true),OO=openOrders(true);
   const pastDue=lateOrders(OO);
   const g=growth(K.rev,K.revC),act=NL.active.size,rpc=act?K.rev/act:0;
   const title=P.cmp?`Revenue ${g>=0?'up':'down'} ${pct(Math.abs(g)).replace('+','')} to ${eurS(K.rev)} for ${P.label}`:`Revenue ${eurS(K.rev)} for ${P.label}`;
@@ -509,10 +509,10 @@ VIEWS.reorder=(pg)=>{const R=reorder(true),tot=R.reduce((s,r)=>s+r.mrev,0);
   $('#rT').querySelectorAll('tr[data-c]').forEach(tr=>tr.onclick=()=>custCard(+tr.dataset.c));
 };
 
-VIEWS.orders=(pg)=>{const O=openOrders(),late=lateOrders(O),toD=O.filter(o=>o[12]==='toDeliver'),nl=O.filter(o=>o[12]==='noLines'),ub=unbilled(O),so=staleOpen(O);
+VIEWS.orders=(pg)=>{const O=openOrders(true),late=lateOrders(O),toD=O.filter(o=>o[12]==='toDeliver'),nl=O.filter(o=>o[12]==='noLines'),ub=unbilled(O),so=staleOpen(O);
   const kgT=L=>L.reduce((a,o)=>a+o[10],0),kgR=L=>L.reduce((a,o)=>a+Math.max(0,o[9]-o[10]),0),kgS=kg=>kg>=10000?ton(kg):NF0.format(kg)+' kg';
   const STAGE={toDeliver:'Still to deliver',deliveredNotInvoiced:'Delivered, not invoiced',invoiced:'Invoiced, still open in Microfas',noLines:'Open, no order lines'};
-  pg.innerHTML=`<h1>${esc(`${toD.length} order${toD.length===1?'':'s'} still to deliver, ${ub.length} waiting for an invoice`)}</h1><p class="sub">Microfas lists ${O.length} sales orders as open on ${dLab(X.meta.snapshot)}. Matched against deliveries and invoices: ${so.length} are already invoiced (their status was not closed), ${ub.length} are delivered in full but have no invoice yet, ${toD.length} still have quantity to deliver, and ${nl.length} have no order lines at all (empty orders to check or close). Orders carry quantities but often no price, so value is shown in kg. ${esc(filtTxt())}; the period filter does not apply.</p>
+  pg.innerHTML=`<h1>${esc(`${toD.length} order${toD.length===1?'':'s'} still to deliver, ${ub.length} waiting for an invoice`)}</h1><p class="sub">Microfas lists ${O.length} sales orders placed in ${esc(period().label)} as open on ${dLab(X.meta.snapshot)}. Matched against deliveries and invoices: ${so.length} are already invoiced (their status was not closed), ${ub.length} are delivered in full but have no invoice yet, ${toD.length} still have quantity to deliver, and ${nl.length} have no order lines at all (empty orders to check or close). Orders carry quantities but often no price, so value is shown in kg. ${esc(filtTxt())}. The period picks the order date: orders placed in ${esc(period().label)} that are still open on ${dLab(X.meta.snapshot)}.</p>
   <div class="kpis">${kpiTile('oD','Still to deliver',NF0.format(toD.length),`<span class="${late.length?'down':'na'}">${late.length} past requested date</span>`,kgR(toD)?kgS(kgR(toD))+' outstanding':'')}${kpiTile('oB','Delivered, not invoiced',NF0.format(ub.length),`<span class="${ub.length?'down':'na'}">${kgS(kgT(ub))} delivered</span>`,'Billing backlog')}${kpiTile('oS','Invoiced, still open',NF0.format(so.length),'<span class="na">status not closed</span>','Order-desk clean-up')}${kpiTile('oN','Open, no order lines',NF0.format(nl.length),`<span class="${nl.length?'down':'na'}">nothing to deliver</span>`,'Empty orders to check')}${kpiTile('oA','All open in Microfas',NF0.format(O.length),'<span class="na">as the system shows them</span>','')}</div>
   <div class="grid">${card('c4','Open orders per verkoper',`<div class="scroll" id="oV"></div>`)}${card('c8','Order list',`<div class="seg" id="oF" style="margin-bottom:6px"></div><div class="scroll tbox" id="oL"></div>`)}</div>`;
   const byV=new Map();for(const o of O){const x=byV.get(o[3])||{t:0,b:0,s:0,n:0};x[o[12]==='toDeliver'?'t':o[12]==='deliveredNotInvoiced'?'b':o[12]==='noLines'?'n':'s']++;byV.set(o[3],x)}
@@ -782,7 +782,7 @@ VIEWS.repcard=(pg,P)=>{const F=X.facts;
   if(!st.rep){const K=salesKPI({rep:''}),a=by(K.cur,i=>F.v[i],'r'),L=[...a].sort((x,y)=>y[1]-x[1]);
     pg.innerHTML=`<h1>Choose a verkoper</h1><p class="sub">One page with everything for one verkoper: revenue, tonnes of Pro Elite and milk powder, calf pens, customers gained and lost, reorders due, overdue invoices and late orders. ${esc(P.label)}.</p><div class="card">${hbars(L.map(([v,r])=>({l:X.verkopers[v],v:r,vt:eurS(r)})))}</div>`;
     pg.querySelectorAll('[data-k]').forEach(e=>e.onclick=()=>{st.rep=X.verkopers[L[+e.dataset.k][0]];syncBar();render()});return}
-  const rep=st.rep,PR=volPresets().filter(x=>x[2]),K=salesKPI(),NL=newLost(),A=arKPI(true),RO=reorder(true),OO=openOrders(),past=lateOrders(OO);
+  const rep=st.rep,PR=volPresets().filter(x=>x[2]),K=salesKPI(),NL=newLost(),A=arKPI(true),RO=reorder(true),OO=openOrders(true),past=lateOrders(OO);
   const vk=PR.map(([id,name,sel])=>({id,name,K:salesKPI({grp:'',where:i=>sel.has(F.p[i])})})),get=id=>vk.find(x=>x.id===id).K;
   const pe=get('proelite'),mp=get('mp'),pens=get('boxes'),act=NL.active.size,actC=K.cmp?activeSet(custRev(K.cmp)).size:null;
   const g=growth(K.rev,K.revC);
